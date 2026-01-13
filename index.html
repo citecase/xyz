@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supreme Court Judgments - Searchable</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    header {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    h1 {
+      color: #0066cc;
+      margin-bottom: 10px;
+    }
+    
+    .search-box {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    #searchInput {
+      width: 100%;
+      padding: 15px;
+      font-size: 16px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      transition: border-color 0.3s;
+    }
+    
+    #searchInput:focus {
+      outline: none;
+      border-color: #0066cc;
+    }
+    
+    .search-stats {
+      margin-top: 10px;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .content-box {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      min-height: 400px;
+    }
+    
+    .highlight {
+      background-color: #ffeb3b;
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    
+    .no-results {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+    
+    .markdown-content h2 {
+      color: #0066cc;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 10px;
+    }
+    
+    .markdown-content h3 {
+      color: #333;
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+    
+    .markdown-content p {
+      margin-bottom: 15px;
+    }
+    
+    .markdown-content pre {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin-bottom: 15px;
+    }
+    
+    .markdown-content blockquote {
+      border-left: 4px solid #0066cc;
+      padding-left: 20px;
+      margin: 20px 0;
+      color: #666;
+      font-style: italic;
+    }
+    
+    .controls {
+      margin-bottom: 15px;
+      display: flex;
+      gap: 10px;
+    }
+    
+    button {
+      padding: 8px 16px;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    button:hover {
+      background: #0052a3;
+    }
+    
+    .match-info {
+      background: #e3f2fd;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📚 Supreme Court Judgments</h1>
+      <p>Search through case documents instantly</p>
+    </header>
+    
+    <div class="search-box">
+      <input 
+        type="text" 
+        id="searchInput" 
+        placeholder="Search for keywords, case names, concepts..." 
+        autocomplete="off"
+      >
+      <div class="search-stats" id="searchStats"></div>
+    </div>
+    
+    <div class="controls">
+      <button onclick="showFullDocument()">Show Full Document</button>
+      <button onclick="clearSearch()">Clear Search</button>
+    </div>
+    
+    <div class="content-box">
+      <div id="content" class="markdown-content">
+        <div class="loading">Loading document...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let fullMarkdown = '';
+    let fullHtml = '';
+    
+    // Fetch the markdown file when page loads
+    async function loadMarkdown() {
+      try {
+        const response = await fetch('sci.md');
+        fullMarkdown = await response.text();
+        fullHtml = marked.parse(fullMarkdown);
+        
+        // Display full document initially
+        document.getElementById('content').innerHTML = fullHtml;
+        document.getElementById('searchStats').textContent = 'Document loaded. Start typing to search.';
+      } catch (error) {
+        document.getElementById('content').innerHTML = 
+          '<div class="no-results">Error loading document. Make sure sci.md is in the same folder.</div>';
+      }
+    }
+    
+    // Search function with highlighting
+    function searchDocument(query) {
+      if (!query || query.length < 2) {
+        showFullDocument();
+        return;
+      }
+      
+      const searchTerms = query.toLowerCase().split(' ').filter(t => t.length > 1);
+      const lines = fullMarkdown.split('\n');
+      const matchingLines = [];
+      let matchCount = 0;
+      
+      // Find matching lines with context
+      lines.forEach((line, index) => {
+        const lowerLine = line.toLowerCase();
+        const hasMatch = searchTerms.some(term => lowerLine.includes(term));
+        
+        if (hasMatch) {
+          matchCount++;
+          // Get context: 2 lines before and after
+          const start = Math.max(0, index - 2);
+          const end = Math.min(lines.length, index + 3);
+          const contextLines = lines.slice(start, end);
+          
+          matchingLines.push({
+            context: contextLines.join('\n'),
+            lineNumber: index + 1
+          });
+        }
+      });
+      
+      if (matchingLines.length === 0) {
+        document.getElementById('content').innerHTML = 
+          '<div class="no-results">No matches found for "' + query + '"</div>';
+        document.getElementById('searchStats').textContent = 'No results found.';
+        return;
+      }
+      
+      // Remove duplicates and create HTML
+      const uniqueMatches = [];
+      const seen = new Set();
+      
+      matchingLines.forEach(match => {
+        if (!seen.has(match.context)) {
+          seen.add(match.context);
+          uniqueMatches.push(match);
+        }
+      });
+      
+      // Create highlighted HTML
+      let resultHtml = `<div class="match-info">Found ${matchCount} matches in ${uniqueMatches.length} sections</div>`;
+      
+      uniqueMatches.slice(0, 50).forEach(match => {
+        let highlightedText = match.context;
+        
+        // Highlight each search term
+        searchTerms.forEach(term => {
+          const regex = new RegExp(`(${term})`, 'gi');
+          highlightedText = highlightedText.replace(regex, '<span class="highlight">$1</span>');
+        });
+        
+        const html = marked.parse(highlightedText);
+        resultHtml += `<div style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
+          <small style="color: #999;">Line ${match.lineNumber}</small>
+          ${html}
+        </div>`;
+      });
+      
+      document.getElementById('content').innerHTML = resultHtml;
+      document.getElementById('searchStats').textContent = 
+        `Showing ${Math.min(50, uniqueMatches.length)} of ${uniqueMatches.length} matching sections`;
+    }
+    
+    function showFullDocument() {
+      document.getElementById('content').innerHTML = fullHtml;
+      document.getElementById('searchInput').value = '';
+      document.getElementById('searchStats').textContent = 'Showing full document.';
+    }
+    
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      showFullDocument();
+    }
+    
+    // Debounced search
+    let searchTimeout;
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        searchDocument(e.target.value);
+      }, 300);
+    });
+    
+    // Load markdown on page load
+    loadMarkdown();
+  </script>
+</body>
+</html>
