@@ -1,267 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DocSearch | Static PDF Indexer</title>
-    <!-- Tailwind CSS for modern styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Fuse.js for fuzzy search logic -->
-    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
-        }
-
-        .search-container {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .search-container:focus-within {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-        }
-
-        .result-card {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .result-card:hover {
-            transform: translateX(4px);
-        }
-
-        .highlight {
-            background-color: #fef08a;
-            padding: 0 2px;
-            border-radius: 2px;
-            font-weight: 600;
-        }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>JSON Search</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    input { padding: 0.6rem; width: 100%; max-width: 500px; font-size: 1.1rem; }
+    #results { margin-top: 1.5rem; }
+    .item { border: 1px solid #ddd; padding: 1rem; margin-bottom: 1rem; border-radius: 6px; }
+    .highlight { background: #fff3cd; }
+    .no-results { color: #777; font-style: italic; }
+  </style>
 </head>
-<body class="min-h-screen text-slate-800">
+<body>
 
-    <!-- Header Section -->
-    <header class="bg-white border-b sticky top-0 z-10">
-        <div class="max-w-5xl mx-auto px-4 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="flex items-center gap-2">
-                <div class="bg-blue-600 p-2 rounded-lg">
-                    <i data-lucide="file-search" class="text-white w-6 h-6"></i>
-                </div>
-                <div>
-                    <h1 class="font-bold text-xl tracking-tight">DocSearch</h1>
-                    <p class="text-xs text-slate-500 font-medium uppercase tracking-widest">Static Indexer</p>
-                </div>
-            </div>
+  <h1>Search in JSON data</h1>
+  
+  <input type="text" id="search" placeholder="Type to search (e.g. name, city, keyword...)" autocomplete="off" autofocus />
+  
+  <div id="results"></div>
 
-            <!-- Search Bar Area -->
-            <div class="relative flex-1 max-w-xl">
-                <div class="search-container relative bg-white border rounded-xl overflow-hidden">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                        <i data-lucide="search" class="w-5 h-5"></i>
-                    </div>
-                    <input 
-                        type="text" 
-                        id="searchInput"
-                        class="block w-full pl-10 pr-4 py-3 border-none focus:ring-2 focus:ring-blue-500 outline-none text-slate-700" 
-                        placeholder="Search through document contents..."
-                        autocomplete="off"
-                    >
-                </div>
-            </div>
+  <script>
+    // ────────────────────────────────────────────────
+    //  CONFIG – change these two lines to match your setup
+    // ────────────────────────────────────────────────
+    const JSON_PATH = "data.json";                     // or "folder/data.json"
+    const SEARCH_FIELDS = ["name", "title", "city", "description", "tags"]; // ← add your field names here
 
-            <div class="hidden lg:flex items-center gap-4 text-slate-500 text-sm">
-                <span id="resultCount">0 items indexed</span>
-            </div>
-        </div>
-    </header>
+    const input = document.getElementById("search");
+    const resultsDiv = document.getElementById("results");
 
-    <main class="max-w-5xl mx-auto px-4 py-8">
-        
-        <!-- Welcome / Status Card -->
-        <div id="statusArea" class="mb-8 p-6 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-4">
-            <div class="p-2 bg-blue-100 rounded-full text-blue-600">
-                <i data-lucide="info" class="w-5 h-5"></i>
-            </div>
-            <div>
-                <h2 class="font-semibold text-blue-900 mb-1">How to use this indexer</h2>
-                <p class="text-blue-800 text-sm opacity-90 leading-relaxed">
-                    This app searches a local JSON database derived from your PDF. 
-                    <span class="font-bold">Pro-tip:</span> Type keywords to find specific pages. Results show page numbers and a context snippet.
-                </p>
-            </div>
-        </div>
+    let data = [];
 
-        <!-- Results Grid -->
-        <div id="resultsGrid" class="space-y-4">
-            <!-- Dynamic content injected here -->
-            <div class="text-center py-20 text-slate-400">
-                <i data-lucide="search" class="w-12 h-12 mx-auto mb-4 opacity-20"></i>
-                <p>Start typing to search your documents...</p>
-            </div>
-        </div>
+    // Load JSON once when page opens
+    fetch(JSON_PATH)
+      .then(res => {
+        if (!res.ok) throw new Error("Could not load " + JSON_PATH);
+        return res.json();
+      })
+      .then(json => {
+        data = Array.isArray(json) ? json : [json]; // handle both array and single object
+        resultsDiv.innerHTML = `<p style="color:#555">Loaded ${data.length} items. Start typing to search.</p>`;
+      })
+      .catch(err => {
+        resultsDiv.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
+        console.error(err);
+      });
 
-    </main>
+    // Live search on every keystroke
+    input.addEventListener("input", () => {
+      const term = input.value.trim().toLowerCase();
+      
+      if (term.length < 1) {
+        resultsDiv.innerHTML = "";
+        return;
+      }
 
-    <!-- Footer -->
-    <footer class="max-w-5xl mx-auto px-4 py-12 border-t mt-12 text-center">
-        <p class="text-slate-400 text-sm">Powered by Fuse.js & Tailwind</p>
-    </footer>
-
-    <script>
-        // --- CONFIGURATION ---
-        // In production, you would set this to the path of your JSON file
-        // const DATA_URL = 'data.json'; 
-        const DATA_URL = 'data.json'; 
-
-        // Sample Data structure (What your PDF extraction should look like)
-        const sampleData = [
-            { id: 1, page: 1, title: "Executive Summary", content: "This report outlines the financial projections for the upcoming fiscal year 2024. We anticipate a 15% growth in digital services.", link: "#page=1" },
-            { id: 2, page: 5, title: "Market Analysis", content: "Competitive analysis shows that regional competitors are shifting toward sustainable energy solutions. Our PDF document covers this in detail on page 5.", link: "#page=5" },
-            { id: 3, page: 12, title: "Technical Specifications", content: "The hardware requires a minimum of 16GB RAM and an i7 processor for optimal performance with the indexing software.", link: "#page=12" },
-            { id: 4, page: 20, title: "Legal Disclaimers", content: "Privacy policy and terms of service. All rights reserved. No part of this publication may be reproduced without prior consent.", link: "#page=20" },
-            { id: 5, page: 25, title: "Conclusion", content: "Final thoughts on the implementation of the static search engine strategy. It is highly efficient for GitHub Pages deployment.", link: "#page=25" }
-        ];
-
-        let fuse;
-        let documentData = [];
-
-        // Initialize Icons
-        lucide.createIcons();
-
-        // Load Data
-        async function initApp() {
-            try {
-                if (DATA_URL) {
-                    const response = await fetch(DATA_URL);
-                    documentData = await response.json();
-                } else {
-                    console.log("Using sample data. Create data.json to use your own content.");
-                    documentData = sampleData;
-                }
-
-                // Update UI count
-                document.getElementById('resultCount').textContent = `${documentData.length} pages indexed`;
-
-                // Configure Fuse.js
-                const options = {
-                    keys: ['title', 'content'],
-                    threshold: 0.3, // 0.0 is perfect match, 1.0 matches everything
-                    includeMatches: true,
-                    minMatchCharLength: 2
-                };
-
-                fuse = new Fuse(documentData, options);
-                
-                // Show all by default (optional)
-                renderResults(documentData.map(item => ({ item })));
-
-            } catch (err) {
-                console.error("Error loading data:", err);
-                document.getElementById('resultsGrid').innerHTML = `
-                    <div class="bg-red-50 border border-red-200 p-6 rounded-xl text-red-700">
-                        <h3 class="font-bold">Data Loading Error</h3>
-                        <p class="text-sm">Could not load search index. Ensure 'data.json' exists in your repository.</p>
-                    </div>
-                `;
-            }
-        }
-
-        // Render Results to HTML
-        function renderResults(results) {
-            const grid = document.getElementById('resultsGrid');
-            
-            if (results.length === 0) {
-                grid.innerHTML = `
-                    <div class="text-center py-20 text-slate-400">
-                        <i data-lucide="frown" class="w-12 h-12 mx-auto mb-4 opacity-20"></i>
-                        <p>No matches found. Try different keywords.</p>
-                    </div>
-                `;
-                lucide.createIcons();
-                return;
-            }
-
-            grid.innerHTML = results.map(res => {
-                const item = res.item;
-                const snippet = highlightText(item.content, document.getElementById('searchInput').value);
-                
-                return `
-                    <div class="result-card bg-white p-6 rounded-2xl border shadow-sm hover:shadow-md hover:border-blue-200 cursor-default">
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <span class="text-xs font-bold text-blue-600 uppercase tracking-tighter bg-blue-50 px-2 py-1 rounded">Page ${item.page}</span>
-                                <h3 class="text-lg font-semibold text-slate-800 mt-2">${item.title}</h3>
-                            </div>
-                            <a href="${item.link}" target="_blank" class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                                <i data-lucide="external-link" class="w-5 h-5"></i>
-                            </a>
-                        </div>
-                        <p class="text-slate-600 text-sm leading-relaxed mb-4">
-                            ...${snippet}...
-                        </p>
-                        <div class="flex items-center gap-2">
-                             <a href="${item.link}" target="_blank" class="text-sm font-medium text-blue-600 hover:underline inline-flex items-center gap-1">
-                                Open Source Document <i data-lucide="chevron-right" class="w-4 h-4"></i>
-                             </a>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            lucide.createIcons();
-        }
-
-        // Simple Helper to highlight search terms in the snippet
-        function highlightText(text, query) {
-            if (!query || query.length < 2) return text.substring(0, 180);
-            
-            const regex = new RegExp(`(${query})`, 'gi');
-            const parts = text.split(regex);
-            
-            // Limit the preview size around the first match
-            const matchIndex = text.toLowerCase().indexOf(query.toLowerCase());
-            const start = Math.max(0, matchIndex - 60);
-            const end = Math.min(text.length, matchIndex + 120);
-            
-            let slice = text.substring(start, end);
-            return slice.replace(regex, '<span class="highlight">$1</span>');
-        }
-
-        // Event Listener for Input
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            const query = e.target.value;
-            
-            if (query.trim() === '') {
-                renderResults(documentData.map(item => ({ item })));
-                return;
-            }
-
-            const results = fuse.search(query);
-            renderResults(results);
+      const matches = data.filter(item => {
+        return SEARCH_FIELDS.some(field => {
+          const value = item[field];
+          if (value == null) return false;
+          return String(value).toLowerCase().includes(term);
         });
+      });
 
-        // Initialize on load
-        window.onload = initApp;
-    </script>
+      if (matches.length === 0) {
+        resultsDiv.innerHTML = '<p class="no-results">No matching items found.</p>';
+        return;
+      }
+
+      // Render results
+      resultsDiv.innerHTML = matches.map(item => {
+        let html = '<div class="item">';
+        // Show all fields (you can customize this part heavily)
+        for (const [key, val] of Object.entries(item)) {
+          let displayVal = val;
+          if (typeof val === "string" && val.toLowerCase().includes(term)) {
+            // Very basic highlight
+            const regex = new RegExp(`(${term})`, "gi");
+            displayVal = val.replace(regex, '<span class="highlight">$1</span>');
+          }
+          html += `<strong>${key}:</strong> ${displayVal}<br>`;
+        }
+        html += '</div>';
+        return html;
+      }).join("");
+    });
+  </script>
+
 </body>
 </html>
